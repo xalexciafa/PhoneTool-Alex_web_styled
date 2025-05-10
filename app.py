@@ -87,8 +87,11 @@ def correggi():
     for col in df.columns:
         df[col] = df[col].apply(rimuovi_caratteri_speciali)
 
-    anomalie, correzioni, non_validi, duplicati = [], [], [], []
-    visti = set()
+    # DUPLICATI PRIMA
+    duplicati_prima = df[df.duplicated(subset=[colonna], keep=False)]
+
+    anomalie, correzioni, non_validi = [], [], []
+    numeri_corretti = []
     righe_valide = []
 
     for idx, valore in df[colonna].items():
@@ -99,11 +102,10 @@ def correggi():
             non_validi.append(df.loc[idx].to_dict())
             continue
 
-        if valore in visti:
-            duplicati.append(df.loc[idx].to_dict())
-            continue
+        if valore in numeri_corretti:
+            continue  # verrà registrato come duplicato dopo
 
-        visti.add(valore)
+        numeri_corretti.append(valore)
 
         if anomalia:
             anomalie.append({'Riga': idx + 2, 'Valore Originale': originale, 'Anomalia': anomalia})
@@ -116,14 +118,25 @@ def correggi():
 
     df_corretto = pd.DataFrame(righe_valide)
 
-    if len(duplicati) > 0:
-        flash(f"Sono stati trovati e rimossi {len(duplicati)} duplicati.", "info")
+    # DUPLICATI DOPO
+    duplicati_dopo = df_corretto[df_corretto.duplicated(subset=[colonna], keep=False)]
+
+    # COMBINA TUTTI I DUPLICATI
+    df_duplicati_totali = pd.concat([duplicati_prima, duplicati_dopo]).drop_duplicates()
+
+    if not df_duplicati_totali.empty:
+        flash(f"Sono stati trovati {len(df_duplicati_totali)} duplicati (prima o dopo il controllo).", "info")
 
     memory_file = BytesIO()
     with ZipFile(memory_file, 'w') as zf:
         with BytesIO() as b:
-            df_corretto.to_excel(b, index=False)
+            df_corretto.drop_duplicates(subset=[colonna]).to_excel(b, index=False)
             zf.writestr('corretto.xlsx', b.getvalue())
+
+        if not df_duplicati_totali.empty:
+            with BytesIO() as b:
+                df_duplicati_totali.to_excel(b, index=False)
+                zf.writestr('duplicati.xlsx', b.getvalue())
 
         if anomalie:
             with BytesIO() as b:
@@ -140,22 +153,17 @@ def correggi():
                 pd.DataFrame(non_validi).to_excel(b, index=False)
                 zf.writestr('non_validi.xlsx', b.getvalue())
 
-        if duplicati:
-            with BytesIO() as b:
-                pd.DataFrame(duplicati).to_excel(b, index=False)
-                zf.writestr('duplicati.xlsx', b.getvalue())
-
         with BytesIO() as b:
             with pd.ExcelWriter(b, engine='openpyxl') as writer:
-                df_corretto.to_excel(writer, sheet_name="Corretto", index=False)
+                df_corretto.drop_duplicates(subset=[colonna]).to_excel(writer, sheet_name="Corretto", index=False)
+                if not df_duplicati_totali.empty:
+                    df_duplicati_totali.to_excel(writer, sheet_name="Duplicati", index=False)
                 if anomalie:
                     pd.DataFrame(anomalie).to_excel(writer, sheet_name="Anomalie", index=False)
                 if correzioni:
                     pd.DataFrame(correzioni).to_excel(writer, sheet_name="Correzioni", index=False)
                 if non_validi:
                     pd.DataFrame(non_validi).to_excel(writer, sheet_name="Non Validi", index=False)
-                if duplicati:
-                    pd.DataFrame(duplicati).to_excel(writer, sheet_name="Duplicati", index=False)
             zf.writestr('report_completo.xlsx', b.getvalue())
 
     memory_file.seek(0)
