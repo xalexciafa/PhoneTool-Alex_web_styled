@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file, redirect, url_for, session
+from flask import Flask, request, render_template, send_file, session
 import pandas as pd
 import os
 import re
@@ -7,8 +7,6 @@ from zipfile import ZipFile
 
 app = Flask(__name__)
 app.secret_key = 'supersegretokey'
-UPLOAD_FOLDER = 'web_uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 PREFISSI_VALIDI = {
     '330', '331', '333', '334', '335', '336', '337', '338', '339',
@@ -65,7 +63,7 @@ def index():
         df = pd.read_excel(file)
         session['data'] = df.to_json()
         session['filename'] = file.filename
-        return render_template('colonne.html', colonne=list(df.columns))
+        return render_template('colonne.html', colonne=list(df.columns), anteprima=df.head())
 
     return render_template('index.html')
 
@@ -130,3 +128,7 @@ def correggi():
 
     memory_file.seek(0)
     return send_file(memory_file, as_attachment=True, download_name="risultati_correzione.zip")
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
