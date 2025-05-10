@@ -62,7 +62,10 @@ def correggi():
         flash("Nessuna colonna selezionata.")
         return render_template('index.html')
 
-    df = pd.read_json(session['data'])
+    if 'data' not in session:
+    flash("Errore: file non caricato o sessione scaduta. Torna alla home.")
+    return redirect(url_for('index'))
+df = pd.read_json(session['data'])
     filename = session.get('filename', 'file.xlsx')
 
     # Pulizia iniziale
