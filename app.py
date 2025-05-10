@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file, session, flash, redirect, url_for
+from flask import Flask, request, render_template, send_file, session, flash
 import pandas as pd
 import os
 import re
@@ -6,7 +6,7 @@ from io import BytesIO
 from zipfile import ZipFile
 
 app = Flask(__name__)
-app.secret_key = 'supersegretokey'
+app.secret_key = 'alex-super-secret'
 
 PREFISSI_VALIDI = {
     '330', '331', '333', '334', '335', '336', '337', '338', '339',
@@ -48,11 +48,8 @@ def correggi_numero(numero):
     if len(numero) > 10:
         return numero, f"Lunghezza superiore a 10 caratteri: {numero}"
 
-    if len(numero) == 9:
-        prefisso = numero[:3]
-        if prefisso not in PREFISSI_VALIDI:
-            return numero, f"Prefisso non valido: {prefisso}"
-        return numero, None
+    if len(numero) == 9 and numero[:3] not in PREFISSI_VALIDI:
+        return numero, f"Prefisso non valido: {numero[:3]}"
 
     if not numero.startswith(('3', '0')):
         numero = '0' + numero
@@ -64,8 +61,8 @@ def index():
     if request.method == 'POST':
         file = request.files['file']
         if not file:
-            flash("Nessun file caricato.", "error")
-            return redirect(url_for('index'))
+            flash("Nessun file caricato.")
+            return render_template('index.html')
 
         df = pd.read_excel(file)
         session['data'] = df.to_json()
@@ -78,18 +75,20 @@ def index():
 def correggi():
     colonna = request.form.get('colonna')
     if not colonna:
-        flash("Nessuna colonna selezionata.", "error")
-        return redirect(url_for('index'))
+        flash("Nessuna colonna selezionata.")
+        return render_template('index.html')
 
     df = pd.read_json(session['data'])
     filename = session.get('filename', 'file.xlsx')
 
+    # Rimuovi caratteri speciali da tutte le colonne
     for col in df.columns:
         df[col] = df[col].apply(rimuovi_caratteri_speciali)
 
-    # DUPLICATI PRIMA
+    # Duplicati prima
     duplicati_prima = df[df.duplicated(subset=[colonna], keep=False)]
 
+    # Correzioni e validazione
     anomalie, correzioni, non_validi = [], [], []
     numeri_corretti = []
     righe_valide = []
@@ -102,8 +101,9 @@ def correggi():
             non_validi.append(df.loc[idx].to_dict())
             continue
 
+        # Registra come duplicato dopo la correzione se già corretto
         if valore in numeri_corretti:
-            continue  # verrà registrato come duplicato dopo
+            continue
 
         numeri_corretti.append(valore)
 
@@ -118,15 +118,16 @@ def correggi():
 
     df_corretto = pd.DataFrame(righe_valide)
 
-    # DUPLICATI DOPO
+    # Duplicati dopo
     duplicati_dopo = df_corretto[df_corretto.duplicated(subset=[colonna], keep=False)]
 
-    # COMBINA TUTTI I DUPLICATI
+    # Unisci duplicati prima e dopo
     df_duplicati_totali = pd.concat([duplicati_prima, duplicati_dopo]).drop_duplicates()
 
     if not df_duplicati_totali.empty:
-        flash(f"Sono stati trovati {len(df_duplicati_totali)} duplicati (prima o dopo il controllo).", "info")
+        flash(f"Sono stati trovati e rimossi {len(df_duplicati_totali)} duplicati.")
 
+    # Crea ZIP
     memory_file = BytesIO()
     with ZipFile(memory_file, 'w') as zf:
         with BytesIO() as b:
@@ -153,6 +154,7 @@ def correggi():
                 pd.DataFrame(non_validi).to_excel(b, index=False)
                 zf.writestr('non_validi.xlsx', b.getvalue())
 
+        # File riepilogo completo
         with BytesIO() as b:
             with pd.ExcelWriter(b, engine='openpyxl') as writer:
                 df_corretto.drop_duplicates(subset=[colonna]).to_excel(writer, sheet_name="Corretto", index=False)
@@ -168,7 +170,3 @@ def correggi():
 
     memory_file.seek(0)
     return send_file(memory_file, as_attachment=True, download_name="risultati_correzione.zip")
-
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
