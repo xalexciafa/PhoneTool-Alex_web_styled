@@ -81,17 +81,17 @@ def correggi():
     df = pd.read_json(session['data'])
     filename = session.get('filename', 'file.xlsx')
 
-    # Rimuovi caratteri speciali da tutte le colonne
+    # Rimuove caratteri speciali
     for col in df.columns:
         df[col] = df[col].apply(rimuovi_caratteri_speciali)
 
-    # Duplicati prima
-    duplicati_prima = df[df.duplicated(subset=[colonna], keep=False)]
+    # Duplicati pre-correzione
+    duplicati_pre = df[df.duplicated(subset=[colonna], keep=False)]
 
-    # Correzioni e validazione
+    # Correzione
     anomalie, correzioni, non_validi = [], [], []
+    righe_corrette = []
     numeri_corretti = []
-    righe_valide = []
 
     for idx, valore in df[colonna].items():
         originale = valore
@@ -101,10 +101,9 @@ def correggi():
             non_validi.append(df.loc[idx].to_dict())
             continue
 
-        # Registra come duplicato dopo la correzione se già corretto
-        if valore in numeri_corretti:
-            continue
-
+        nuova_riga = df.loc[idx].copy()
+        nuova_riga[colonna] = valore
+        righe_corrette.append(nuova_riga)
         numeri_corretti.append(valore)
 
         if anomalia:
@@ -112,22 +111,18 @@ def correggi():
         elif originale != valore:
             correzioni.append({'Riga': idx + 2, 'Valore Originale': originale, 'Valore Corretto': valore})
 
-        riga = df.loc[idx].copy()
-        riga[colonna] = valore
-        righe_valide.append(riga)
+    df_corretto = pd.DataFrame(righe_corrette)
 
-    df_corretto = pd.DataFrame(righe_valide)
+    # Duplicati post-correzione
+    duplicati_post = df_corretto[df_corretto.duplicated(subset=[colonna], keep=False)]
 
-    # Duplicati dopo
-    duplicati_dopo = df_corretto[df_corretto.duplicated(subset=[colonna], keep=False)]
-
-    # Unisci duplicati prima e dopo
-    df_duplicati_totali = pd.concat([duplicati_prima, duplicati_dopo]).drop_duplicates()
+    # Unione dei duplicati
+    df_duplicati_totali = pd.concat([duplicati_pre, duplicati_post]).drop_duplicates()
 
     if not df_duplicati_totali.empty:
         flash(f"Sono stati trovati e rimossi {len(df_duplicati_totali)} duplicati.")
 
-    # Crea ZIP
+    # Esportazione ZIP
     memory_file = BytesIO()
     with ZipFile(memory_file, 'w') as zf:
         with BytesIO() as b:
@@ -154,7 +149,7 @@ def correggi():
                 pd.DataFrame(non_validi).to_excel(b, index=False)
                 zf.writestr('non_validi.xlsx', b.getvalue())
 
-        # File riepilogo completo
+        # Report completo
         with BytesIO() as b:
             with pd.ExcelWriter(b, engine='openpyxl') as writer:
                 df_corretto.drop_duplicates(subset=[colonna]).to_excel(writer, sheet_name="Corretto", index=False)
@@ -170,7 +165,8 @@ def correggi():
 
     memory_file.seek(0)
     return send_file(memory_file, as_attachment=True, download_name="risultati_correzione.zip")
+
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
