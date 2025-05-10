@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Seleziona colonna</title>
+    <style>
+        body {
+            background-color: #0079C1;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding-top: 50px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            display: inline-block;
+            padding: 30px;
+        }
+        select, input[type="submit"] {
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: none;
+            margin-top: 15px;
+        }
+        input[type="submit"] {
+            background-color: white;
+            color: #0079C1;
+            cursor: pointer;
+        }
+        table {
+            margin-top: 20px;
+            background: white;
+            color: black;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        th, td {
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+        }
+        footer {
+            position: fixed;
+            bottom: 10px;
+            right: 20px;
+            font-size: 12px;
+            color: #ffffffaa;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>2. Seleziona la colonna da correggere</h2>
+        <form action="/correggi" method="post">
+            <label for="colonna">Colonna:</label>
+            <select name="colonna" required>
+                {% for col in colonne %}
+                <option value="{{ col }}">{{ col }}</option>
+                {% endfor %}
+            </select>
+            <br>
+            <input type="submit" value="Correggi e Scarica">
+        </form>
+        <h3>Anteprima file:</h3>
+        <table>
+            <thead>
+                <tr>
+                    {% for col in anteprima.columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in anteprima.itertuples(index=False) %}
+                <tr>
+                    {% for cell in row %}
+                    <td>{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <footer>&copy; Alessandro Di Maso</footer>
+</body>
+</html>
