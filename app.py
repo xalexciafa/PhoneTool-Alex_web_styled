@@ -27,10 +27,9 @@ def rimuovi_spazi(valore):
     return valore
 
 def correggi_numero(numero):
-    if not isinstance(numero, str):
-        return numero, None
-
-    originale = numero
+    if pd.isnull(numero):
+        return None, "Valore nullo"
+    numero = str(numero).strip()
     numero = rimuovi_spazi(numero)
 
     # +39 (13 cifre) → rimuovi +39
@@ -40,11 +39,17 @@ def correggi_numero(numero):
     elif numero.startswith('39') and len(numero) == 12:
         numero = numero[2:]
 
+    # se contiene ancora 'E+' o ',' è notazione scientifica o separatore decimale
+    numero = numero.replace(',', '').split('E')[0]
+
+    if not numero.isdigit():
+        return None, f"Contiene caratteri non numerici: {numero}"
+
     if len(numero) < 9:
-        return None, f"Numero troppo corto: {originale}"
+        return None, f"Numero troppo corto: {numero}"
 
     if len(numero) > 10:
-        return numero, f"Lunghezza superiore a 10 caratteri: {originale}"
+        return numero, f"Lunghezza superiore a 10 caratteri: {numero}"
 
     if len(numero) == 9:
         prefisso = numero[:3]
@@ -83,25 +88,40 @@ def correggi():
     for col in df.columns:
         df[col] = df[col].apply(rimuovi_caratteri_speciali)
 
-    anomalie, correzioni, non_validi = [], [], []
+    anomalie, correzioni, non_validi, duplicati = [], [], [], []
+    visti = set()
+
+    righe_valide = []
 
     for idx, valore in df[colonna].items():
         originale = valore
         valore, anomalia = correggi_numero(valore)
+
         if valore is None:
             non_validi.append(df.loc[idx].to_dict())
-            df.drop(index=idx, inplace=True)
-        else:
-            df.at[idx, colonna] = valore
-            if anomalia:
-                anomalie.append({'Riga': idx + 2, 'Valore Originale': originale, 'Anomalia': anomalia})
-            elif originale != valore:
-                correzioni.append({'Riga': idx + 2, 'Valore Originale': originale, 'Valore Corretto': valore})
+            continue
+
+        if valore in visti:
+            duplicati.append(df.loc[idx].to_dict())
+            continue
+
+        visti.add(valore)
+
+        if anomalia:
+            anomalie.append({'Riga': idx + 2, 'Valore Originale': originale, 'Anomalia': anomalia})
+        elif originale != valore:
+            correzioni.append({'Riga': idx + 2, 'Valore Originale': originale, 'Valore Corretto': valore})
+
+        riga = df.loc[idx].copy()
+        riga[colonna] = valore
+        righe_valide.append(riga)
+
+    df_corretto = pd.DataFrame(righe_valide)
 
     memory_file = BytesIO()
     with ZipFile(memory_file, 'w') as zf:
         with BytesIO() as b:
-            df.to_excel(b, index=False)
+            df_corretto.to_excel(b, index=False)
             zf.writestr('corretto.xlsx', b.getvalue())
 
         if anomalie:
@@ -119,15 +139,22 @@ def correggi():
                 pd.DataFrame(non_validi).to_excel(b, index=False)
                 zf.writestr('non_validi.xlsx', b.getvalue())
 
+        if duplicati:
+            with BytesIO() as b:
+                pd.DataFrame(duplicati).to_excel(b, index=False)
+                zf.writestr('duplicati.xlsx', b.getvalue())
+
         with BytesIO() as b:
             with pd.ExcelWriter(b, engine='openpyxl') as writer:
-                df.to_excel(writer, sheet_name="Corretto", index=False)
+                df_corretto.to_excel(writer, sheet_name="Corretto", index=False)
                 if anomalie:
                     pd.DataFrame(anomalie).to_excel(writer, sheet_name="Anomalie", index=False)
                 if correzioni:
                     pd.DataFrame(correzioni).to_excel(writer, sheet_name="Correzioni", index=False)
                 if non_validi:
                     pd.DataFrame(non_validi).to_excel(writer, sheet_name="Non Validi", index=False)
+                if duplicati:
+                    pd.DataFrame(duplicati).to_excel(writer, sheet_name="Duplicati", index=False)
             zf.writestr('report_completo.xlsx', b.getvalue())
 
     memory_file.seek(0)
