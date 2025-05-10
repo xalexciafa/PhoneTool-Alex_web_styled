@@ -1,18 +1,8 @@
 <!DOCTYPE html>
 <html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <title>Seleziona Colonna</title>
-</head>
+<head><meta charset="UTF-8"><title>Seleziona Colonna</title></head>
 <body style="background-color:#0079C1; color:white; text-align:center;">
     <h2>Seleziona la colonna da correggere</h2>
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for message in messages %}
-          <p style="color:yellow;">{{ message }}</p>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
     <form method="POST" action="/correggi">
         <select name="colonna">
             {% for col in colonne %}
