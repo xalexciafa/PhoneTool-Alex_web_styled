@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file, session
+from flask import Flask, request, render_template, send_file, session, flash, redirect, url_for
 import pandas as pd
 import os
 import re
@@ -64,7 +64,8 @@ def index():
     if request.method == 'POST':
         file = request.files['file']
         if not file:
-            return "Nessun file caricato."
+            flash("Nessun file caricato.", "error")
+            return redirect(url_for('index'))
 
         df = pd.read_excel(file)
         session['data'] = df.to_json()
@@ -77,7 +78,8 @@ def index():
 def correggi():
     colonna = request.form.get('colonna')
     if not colonna:
-        return "Nessuna colonna selezionata."
+        flash("Nessuna colonna selezionata.", "error")
+        return redirect(url_for('index'))
 
     df = pd.read_json(session['data'])
     filename = session.get('filename', 'file.xlsx')
@@ -97,7 +99,6 @@ def correggi():
             non_validi.append(df.loc[idx].to_dict())
             continue
 
-        # Duplicati: dopo la correzione
         if valore in visti:
             duplicati.append(df.loc[idx].to_dict())
             continue
@@ -114,6 +115,9 @@ def correggi():
         righe_valide.append(riga)
 
     df_corretto = pd.DataFrame(righe_valide)
+
+    if len(duplicati) > 0:
+        flash(f"Sono stati trovati e rimossi {len(duplicati)} duplicati.", "info")
 
     memory_file = BytesIO()
     with ZipFile(memory_file, 'w') as zf:
