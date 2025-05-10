@@ -5,7 +5,7 @@
     <title>Correttore Excel Web</title>
     <style>
         body {
-            background-color: #0079C1; /* Azzurro Napoli */
+            background-color: #0079C1;
             color: white;
             font-family: Arial, sans-serif;
             text-align: center;
@@ -37,9 +37,21 @@
             font-size: 12px;
             color: #ffffffaa;
         }
+        .macinino {
+            width: 100px;
+            display: block;
+            margin: 0 auto 20px auto;
+        }
+        .pesce {
+            position: fixed;
+            bottom: 0;
+            left: 10px;
+            width: 80px;
+        }
     </style>
 </head>
 <body>
+    <img src="https://media.giphy.com/media/XreQmk7ETCak0/giphy.gif" alt="Macina dati" class="macinino" />
     <div class="container">
         <h2>1. Carica un file Excel</h2>
         <form method="post" enctype="multipart/form-data">
@@ -47,6 +59,7 @@
             <input type="submit" value="Continua">
         </form>
     </div>
+    <img src="https://media.giphy.com/media/jUwpNzg9IcyrK/giphy.gif" alt="Pesce pulitore" class="pesce" />
     <footer>&copy; Alessandro Di Maso</footer>
 </body>
 </html>

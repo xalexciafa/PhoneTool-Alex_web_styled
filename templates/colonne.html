@@ -47,11 +47,42 @@
             font-size: 12px;
             color: #ffffffaa;
         }
+        .macinino {
+            width: 100px;
+            display: block;
+            margin: 0 auto 20px auto;
+        }
+        .pesce {
+            position: fixed;
+            bottom: 0;
+            left: 10px;
+            width: 80px;
+        }
+        .flash {
+            background-color: #ffcc00;
+            color: black;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            width: 50%;
+            margin-left: auto;
+            margin-right: auto;
+        }
     </style>
 </head>
 <body>
+    <img src="https://media.giphy.com/media/XreQmk7ETCak0/giphy.gif" alt="Macina dati" class="macinino" />
     <div class="container">
         <h2>2. Seleziona la colonna da correggere</h2>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
         <form action="/correggi" method="post">
             <label for="colonna">Colonna:</label>
             <select name="colonna" required>
@@ -82,6 +113,7 @@
             </tbody>
         </table>
     </div>
+    <img src="https://media.giphy.com/media/jUwpNzg9IcyrK/giphy.gif" alt="Pesce pulitore" class="pesce" />
     <footer>&copy; Alessandro Di Maso</footer>
 </body>
 </html>
