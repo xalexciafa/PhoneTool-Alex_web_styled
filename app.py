@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_file, session, flash
+from flask import Flask, request, render_template, send_file, redirect, url_for, session
 import pandas as pd
 import os
 import re
@@ -6,7 +6,9 @@ from io import BytesIO
 from zipfile import ZipFile
 
 app = Flask(__name__)
-app.secret_key = 'alex-super-secret'
+app.secret_key = 'supersegretokey'
+UPLOAD_FOLDER = 'web_uploads'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 PREFISSI_VALIDI = {
     '330', '331', '333', '334', '335', '336', '337', '338', '339',
@@ -21,25 +23,36 @@ def rimuovi_caratteri_speciali(valore):
         return re.sub(r'[^a-zA-Z0-9\s]', '', valore)
     return valore
 
+def rimuovi_spazi(valore):
+    if isinstance(valore, str):
+        return valore.replace(" ", "")
+    return valore
+
 def correggi_numero(numero):
-    if pd.isnull(numero):
-        return None, "Valore nullo"
-    numero = str(numero).strip().replace(" ", "")
+    if not isinstance(numero, str):
+        return numero, None
+
+    originale = numero
+    numero = rimuovi_spazi(numero)
+
+    if len(numero) < 9:
+        return None, f"Numero troppo corto: {originale}"
+
     if numero.startswith('+39') and len(numero) == 13:
         numero = numero[3:]
-    elif numero.startswith('39') and len(numero) == 12:
-        numero = numero[2:]
-    numero = numero.replace(',', '').split('E')[0]
-    if not numero.isdigit():
-        return None, f"Contiene caratteri non numerici: {numero}"
-    if len(numero) < 9:
-        return None, f"Numero troppo corto: {numero}"
+
     if len(numero) > 10:
-        return numero, f"Lunghezza superiore a 10 caratteri: {numero}"
-    if len(numero) == 9 and numero[:3] not in PREFISSI_VALIDI:
-        return numero, f"Prefisso non valido: {numero[:3]}"
+        return numero, f"Lunghezza superiore a 10 caratteri: {originale}"
+
+    if len(numero) == 9:
+        prefisso = numero[:3]
+        if prefisso not in PREFISSI_VALIDI:
+            return numero, f"Prefisso non valido: {prefisso}"
+        return numero, None
+
     if not numero.startswith(('3', '0')):
         numero = '0' + numero
+
     return numero, None
 
 @app.route('/', methods=['GET', 'POST'])
@@ -47,104 +60,73 @@ def index():
     if request.method == 'POST':
         file = request.files['file']
         if not file:
-            flash("Nessun file caricato.")
-            return render_template('index.html')
+            return "Nessun file caricato."
+
         df = pd.read_excel(file)
         session['data'] = df.to_json()
         session['filename'] = file.filename
-        return render_template('colonne.html', colonne=list(df.columns), anteprima=df.head())
+        return render_template('colonne.html', colonne=list(df.columns))
+
     return render_template('index.html')
 
 @app.route('/correggi', methods=['POST'])
 def correggi():
     colonna = request.form.get('colonna')
     if not colonna:
-        flash("Nessuna colonna selezionata.")
-        return render_template('index.html')
-
-    if 'data' not in session:
-    flash("Errore: file non caricato o sessione scaduta. Torna alla home.")
-    return redirect(url_for('index'))
+        return "Nessuna colonna selezionata."
 
     df = pd.read_json(session['data'])
     filename = session.get('filename', 'file.xlsx')
 
-    # Pulizia iniziale
     for col in df.columns:
         df[col] = df[col].apply(rimuovi_caratteri_speciali)
 
     anomalie, correzioni, non_validi = [], [], []
-    righe_corrette = []
 
-    for idx, val in df[colonna].items():
-        original = val
-        corrected, note = correggi_numero(val)
-        if corrected is None:
+    for idx, valore in df[colonna].items():
+        originale = valore
+        valore, anomalia = correggi_numero(valore)
+        if valore is None:
             non_validi.append(df.loc[idx].to_dict())
-            continue
-        row = df.loc[idx].copy()
-        row[colonna] = corrected
-        righe_corrette.append(row)
-        if note:
-            anomalie.append({'Riga': idx+2, 'Valore Originale': original, 'Anomalia': note})
-        elif original != corrected:
-            correzioni.append({'Riga': idx+2, 'Valore Originale': original, 'Valore Corretto': corrected})
+            df.drop(index=idx, inplace=True)
+        else:
+            df.at[idx, colonna] = valore
+            if anomalia:
+                anomalie.append({'Riga': idx + 2, 'Valore Originale': originale, 'Anomalia': anomalia})
+            elif originale != valore:
+                correzioni.append({'Riga': idx + 2, 'Valore Originale': originale, 'Valore Corretto': valore})
 
-    df_corr = pd.DataFrame(righe_corrette)
-
-    # Trova duplicati PRIMA della rimozione
-    duplicati = df_corr[df_corr.duplicated(subset=[colonna], keep=False)]
-
-    if not duplicati.empty:
-        flash(f"Sono stati trovati e rimossi {len(duplicati)} duplicati.")
-
-    # Crea file ZIP
     memory_file = BytesIO()
     with ZipFile(memory_file, 'w') as zf:
-        # File corretto (senza duplicati)
         with BytesIO() as b:
-            df_corr.drop_duplicates(subset=[colonna]).to_excel(b, index=False)
-            zf.writestr("corretto.xlsx", b.getvalue())
-
-        # Duplicati trovati
-        if not duplicati.empty:
-            with BytesIO() as b:
-                duplicati.to_excel(b, index=False)
-                zf.writestr("duplicati.xlsx", b.getvalue())
-
-        if correzioni:
-            with BytesIO() as b:
-                pd.DataFrame(correzioni).to_excel(b, index=False)
-                zf.writestr("correzioni.xlsx", b.getvalue())
+            df.to_excel(b, index=False)
+            zf.writestr('corretto.xlsx', b.getvalue())
 
         if anomalie:
             with BytesIO() as b:
                 pd.DataFrame(anomalie).to_excel(b, index=False)
-                zf.writestr("anomalie.xlsx", b.getvalue())
+                zf.writestr('anomalie.xlsx', b.getvalue())
+
+        if correzioni:
+            with BytesIO() as b:
+                pd.DataFrame(correzioni).to_excel(b, index=False)
+                zf.writestr('correzioni.xlsx', b.getvalue())
 
         if non_validi:
             with BytesIO() as b:
                 pd.DataFrame(non_validi).to_excel(b, index=False)
-                zf.writestr("non_validi.xlsx", b.getvalue())
+                zf.writestr('non_validi.xlsx', b.getvalue())
 
-        # Report completo
         with BytesIO() as b:
             with pd.ExcelWriter(b, engine='openpyxl') as writer:
-                df_corr.drop_duplicates(subset=[colonna]).to_excel(writer, sheet_name="Corretto", index=False)
-                if not duplicati.empty:
-                    duplicati.to_excel(writer, sheet_name="Duplicati", index=False)
-                if correzioni:
-                    pd.DataFrame(correzioni).to_excel(writer, sheet_name="Correzioni", index=False)
+                df.to_excel(writer, sheet_name="Corretto", index=False)
                 if anomalie:
                     pd.DataFrame(anomalie).to_excel(writer, sheet_name="Anomalie", index=False)
+                if correzioni:
+                    pd.DataFrame(correzioni).to_excel(writer, sheet_name="Correzioni", index=False)
                 if non_validi:
                     pd.DataFrame(non_validi).to_excel(writer, sheet_name="Non Validi", index=False)
-            zf.writestr("report_completo.xlsx", b.getvalue())
+            zf.writestr('report_completo.xlsx', b.getvalue())
 
     memory_file.seek(0)
     return send_file(memory_file, as_attachment=True, download_name="risultati_correzione.zip")
-
-if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
