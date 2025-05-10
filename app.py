@@ -32,14 +32,11 @@ def correggi_numero(numero):
     numero = str(numero).strip()
     numero = rimuovi_spazi(numero)
 
-    # +39 (13 cifre) → rimuovi +39
     if numero.startswith('+39') and len(numero) == 13:
         numero = numero[3:]
-    # 393... (12 cifre) → rimuovi 39 e lascia il resto
     elif numero.startswith('39') and len(numero) == 12:
         numero = numero[2:]
 
-    # se contiene ancora 'E+' o ',' è notazione scientifica o separatore decimale
     numero = numero.replace(',', '').split('E')[0]
 
     if not numero.isdigit():
@@ -90,7 +87,6 @@ def correggi():
 
     anomalie, correzioni, non_validi, duplicati = [], [], [], []
     visti = set()
-
     righe_valide = []
 
     for idx, valore in df[colonna].items():
@@ -101,6 +97,7 @@ def correggi():
             non_validi.append(df.loc[idx].to_dict())
             continue
 
+        # Duplicati: dopo la correzione
         if valore in visti:
             duplicati.append(df.loc[idx].to_dict())
             continue
