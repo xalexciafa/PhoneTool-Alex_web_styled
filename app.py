@@ -170,3 +170,7 @@ def correggi():
 
     memory_file.seek(0)
     return send_file(memory_file, as_attachment=True, download_name="risultati_correzione.zip")
+if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
