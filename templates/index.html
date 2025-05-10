@@ -1,65 +1,15 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <title>Correttore Excel Web</title>
-    <style>
-        body {
-            background-color: #0079C1;
-            color: white;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            padding-top: 50px;
-        }
-        .container {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            display: inline-block;
-            padding: 30px;
-        }
-        input[type="file"],
-        input[type="submit"] {
-            padding: 10px;
-            border-radius: 5px;
-            border: none;
-            margin: 10px;
-            font-size: 16px;
-        }
-        input[type="submit"] {
-            background-color: white;
-            color: #0079C1;
-            cursor: pointer;
-        }
-        footer {
-            position: fixed;
-            bottom: 10px;
-            right: 20px;
-            font-size: 12px;
-            color: #ffffffaa;
-        }
-        .macinino {
-            width: 100px;
-            display: block;
-            margin: 0 auto 20px auto;
-        }
-        .pesce {
-            position: fixed;
-            bottom: 0;
-            left: 10px;
-            width: 80px;
-        }
-    </style>
+    <title>Carica File</title>
 </head>
-<body>
-    <img src="https://media.giphy.com/media/XreQmk7ETCak0/giphy.gif" alt="Macina dati" class="macinino" />
-    <div class="container">
-        <h2>1. Carica un file Excel</h2>
-        <form method="post" enctype="multipart/form-data">
-            <input type="file" name="file" required><br>
-            <input type="submit" value="Continua">
-        </form>
-    </div>
-    <img src="https://media.giphy.com/media/jUwpNzg9IcyrK/giphy.gif" alt="Pesce pulitore" class="pesce" />
-    <footer>&copy; Alessandro Di Maso</footer>
+<body style="background-color:#0079C1; color:white; text-align:center;">
+    <h1>Correttore Numeri</h1>
+    <form method="POST" enctype="multipart/form-data">
+        <input type="file" name="file" required />
+        <br><br>
+        <input type="submit" value="Carica" />
+    </form>
 </body>
 </html>
