@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>ALEX'S TOOL</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f0f4f8;
+        }
+        h1 {
+            margin-top: 20px;
+        }
+        form {
+            margin: 30px auto;
+            width: 50%;
+        }
+        .gif {
+            position: absolute;
+            left: 20px;
+            top: 40%;
+        }
+        .footer {
+            position: fixed;
+            right: 10px;
+            bottom: 5px;
+            font-size: 12px;
+            color: gray;
+        }
+    </style>
+</head>
+<body>
+    <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" width="200">
+    <h1>ALEX'S TOOL</h1>
+
+    <form method="POST" enctype="multipart/form-data">
+        <label>Carica file Excel:</label><br>
+        <input type="file" name="file" required><br><br>
+        <button type="submit">Carica e continua</button>
+    </form>
+
+    <img class="gif" src="{{ url_for('static', filename='spazzino.gif') }}" width="120">
+
+    <div class="footer">
+        &copy; Alessandro Di Maso
+    </div>
+</body>
+</html>
