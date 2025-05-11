@@ -34,9 +34,9 @@
     <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" width="200">
     <h1>ALEX'S TOOL</h1>
 
-    <form method="POST" enctype="multipart/form-data">
-        <label>Carica file Excel:</label><br>
-        <input type="file" name="file" required><br><br>
+    <form method="POST" enctype="multipart/form-data" action="/">
+        <label>Carica file Excel (.xlsx):</label><br>
+        <input type="file" name="file" accept=".xlsx" required><br><br>
         <button type="submit">Carica e continua</button>
     </form>
 
