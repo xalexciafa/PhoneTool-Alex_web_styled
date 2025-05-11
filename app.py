@@ -1,12 +1,13 @@
-from flask import Flask, request, render_template, send_file, session, flash, redirect, url_for
+from flask import Flask, request, render_template, send_from_directory, redirect, url_for, session, flash
 import pandas as pd
 import os
 import re
-from io import BytesIO
-from zipfile import ZipFile
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.secret_key = 'alex-super-secret'
+app.secret_key = 'super_secret_key'
+UPLOAD_FOLDER = "files"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 PREFISSI_VALIDI = {
     '330', '331', '333', '334', '335', '336', '337', '338', '339',
@@ -49,27 +50,34 @@ def correggi_numero(numero):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        file = request.files.get('file')
+        file = request.files['file']
         if not file:
             flash("Nessun file caricato.")
             return render_template('index.html')
-        df = pd.read_excel(file)
-        session['data'] = df.to_json()
-        session['filename'] = file.filename
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        df = pd.read_excel(filepath)
+        session['filepath'] = filepath
         return render_template('colonne.html', colonne=list(df.columns), anteprima=df.head())
     return render_template('index.html')
 
 @app.route('/correggi', methods=['POST'])
 def correggi():
     colonna = request.form.get('colonna')
-    if 'data' not in session:
-        flash("Errore: file non caricato o sessione scaduta.")
+    filepath = session.get('filepath')
+    if not filepath or not os.path.exists(filepath):
+        flash("File non trovato o sessione scaduta.")
         return redirect(url_for('index'))
-    df = pd.read_json(session['data'])
-    filename = session.get('filename', 'file.xlsx')
 
-    for col in df.columns:
-        df[col] = df[col].apply(rimuovi_caratteri_speciali)
+    df = pd.read_excel(filepath)
+    df[colonna] = df[colonna].apply(rimuovi_caratteri_speciali)
+
+    # Salva duplicati
+    duplicati = df[df.duplicated(subset=[colonna], keep=False)]
+    if not duplicati.empty:
+        duplicati.to_excel(os.path.join(UPLOAD_FOLDER, 'duplicati.xlsx'), index=False)
+        df = df.drop_duplicates(subset=[colonna])
 
     anomalie, correzioni, non_validi, righe_valide = [], [], [], []
 
@@ -87,29 +95,26 @@ def correggi():
         elif originale != valore:
             correzioni.append({'Riga': idx + 2, 'Valore Originale': originale, 'Valore Corretto': valore})
 
-    df_corretto = pd.DataFrame(righe_valide)
+    pd.DataFrame(righe_valide).to_excel(os.path.join(UPLOAD_FOLDER, 'corretto.xlsx'), index=False)
+    if correzioni:
+        pd.DataFrame(correzioni).to_excel(os.path.join(UPLOAD_FOLDER, 'correzioni.xlsx'), index=False)
+    if anomalie:
+        pd.DataFrame(anomalie).to_excel(os.path.join(UPLOAD_FOLDER, 'anomalie.xlsx'), index=False)
+    if non_validi:
+        pd.DataFrame(non_validi).to_excel(os.path.join(UPLOAD_FOLDER, 'non_validi.xlsx'), index=False)
 
-    memory_file = BytesIO()
-    with ZipFile(memory_file, 'w') as zf:
-        with BytesIO() as b:
-            df_corretto.to_excel(b, index=False)
-            zf.writestr('corretto.xlsx', b.getvalue())
-        if anomalie:
-            with BytesIO() as b:
-                pd.DataFrame(anomalie).to_excel(b, index=False)
-                zf.writestr('anomalie.xlsx', b.getvalue())
-        if correzioni:
-            with BytesIO() as b:
-                pd.DataFrame(correzioni).to_excel(b, index=False)
-                zf.writestr('correzioni.xlsx', b.getvalue())
-        if non_validi:
-            with BytesIO() as b:
-                pd.DataFrame(non_validi).to_excel(b, index=False)
-                zf.writestr('non_validi.xlsx', b.getvalue())
-    memory_file.seek(0)
-    return send_file(memory_file, as_attachment=True, download_name="risultati_correzione.zip")
+    return render_template(
+        'final.html',
+        corretto=True,
+        correzioni=bool(correzioni),
+        anomalie=bool(anomalie),
+        non_validi=bool(non_validi),
+        duplicati=not duplicati.empty
+    )
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
