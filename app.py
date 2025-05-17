@@ -2,10 +2,11 @@ from flask import Flask, render_template, request, redirect, send_file, jsonify
 import pandas as pd
 import os
 from werkzeug.utils import secure_filename
+import zipfile
+
 os.makedirs('input', exist_ok=True)
 os.makedirs('output', exist_ok=True)
 os.makedirs('logs', exist_ok=True)
-import zipfile
 
 app = Flask(__name__)
 
@@ -15,10 +16,6 @@ LOG_FOLDER = 'logs'
 STATIC_FOLDER = 'static'
 ZIP_PATH = 'zipped_results.zip'
 ALLOWED_EXTENSIONS = {'xlsx'}
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-os.makedirs(LOG_FOLDER, exist_ok=True)
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -74,6 +71,11 @@ def process():
         if pd.isna(cleaned):
             continue
 
+        if cleaned.startswith('800'):
+            eccezioni.append((index + 2, original))
+            report.append((index + 2, original, original, 'Numero verde (non modificato)'))
+            continue
+
         cleaned = ''.join(filter(str.isdigit, cleaned)) if not cleaned.startswith('+') else '+' + ''.join(filter(str.isdigit, cleaned))
         if ' ' in original:
             note.append('Rimosso spazio')
@@ -90,10 +92,6 @@ def process():
         if not cleaned.startswith(('3', '0')):
             cleaned = '0' + cleaned
             note.append('Aggiunto zero iniziale')
-
-        if cleaned.startswith('800'):
-            eccezioni.append((index + 2, original))
-            note.append('Numero verde')
 
         if cleaned in seen:
             duplicati.append((index + 2, cleaned))
@@ -120,6 +118,7 @@ def process():
     pd.DataFrame(duplicati, columns=['Riga', 'Duplicato']).to_excel(os.path.join(LOG_FOLDER, 'duplicati.xlsx'), index=False)
     pd.DataFrame(anomalie, columns=['Riga', 'Anomalia']).to_excel(os.path.join(LOG_FOLDER, 'anomalie.xlsx'), index=False)
     pd.DataFrame(non_validi, columns=['Riga', 'Non valido']).to_excel(os.path.join(LOG_FOLDER, 'non_validi.xlsx'), index=False)
+    pd.DataFrame(eccezioni, columns=['Riga', 'Numero verde']).to_excel(os.path.join(LOG_FOLDER, 'eccezioni.xlsx'), index=False)
     pd.DataFrame(report, columns=['Riga', 'Originale', 'Finale', 'Note']).to_excel(os.path.join(LOG_FOLDER, 'report_completo.xlsx'), index=False)
 
     corretto_df = pd.read_excel(os.path.join(OUTPUT_FOLDER, 'corretto.xlsx'))
@@ -133,8 +132,6 @@ def process():
                 zipf.write(os.path.join(folder, file), arcname=os.path.join(folder, file))
 
     return send_file(ZIP_PATH, as_attachment=True)
-
-import os
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
