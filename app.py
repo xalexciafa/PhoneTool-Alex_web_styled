@@ -62,6 +62,7 @@ def process():
     eccezioni = []
     report = []
     seen = set()
+    valid_rows = []
 
     for index, row in df.iterrows():
         original = str(row[selected_column])
@@ -98,13 +99,21 @@ def process():
             continue
         seen.add(cleaned)
 
+        if not cleaned.isdigit():
+            non_validi.append((index + 2, cleaned))
+            continue
+
         if len(cleaned) > 10:
             anomalie.append((index + 2, cleaned))
+            continue
         elif len(cleaned) < 9:
             non_validi.append((index + 2, cleaned))
+            continue
         elif len(cleaned) == 9 and cleaned[:3] not in VALID_PREFIXES:
             non_validi.append((index + 2, cleaned))
+            continue
         else:
+            valid_rows.append(row)
             if note:
                 corrected.append((index + 2, original, cleaned, ', '.join(note)))
 
@@ -121,9 +130,7 @@ def process():
     pd.DataFrame(eccezioni, columns=['Riga', 'Numero verde']).to_excel(os.path.join(LOG_FOLDER, 'eccezioni.xlsx'), index=False)
     pd.DataFrame(report, columns=['Riga', 'Originale', 'Finale', 'Note']).to_excel(os.path.join(LOG_FOLDER, 'report_completo.xlsx'), index=False)
 
-    corretto_df = pd.read_excel(os.path.join(OUTPUT_FOLDER, 'corretto.xlsx'))
-    to_exclude = set(x[1] for x in anomalie + duplicati + non_validi)
-    definitivo_df = corretto_df[~corretto_df[selected_column].astype(str).isin(to_exclude)]
+    definitivo_df = pd.DataFrame(valid_rows)
     definitivo_df.to_excel(os.path.join(OUTPUT_FOLDER, 'definitivo.xlsx'), index=False)
 
     with zipfile.ZipFile(ZIP_PATH, 'w') as zipf:
