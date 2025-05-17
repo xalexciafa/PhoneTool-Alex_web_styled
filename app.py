@@ -1,0 +1,135 @@
+from flask import Flask, render_template, request, redirect, send_file, jsonify
+import pandas as pd
+import os
+from werkzeug.utils import secure_filename
+import zipfile
+
+app = Flask(__name__)
+
+UPLOAD_FOLDER = 'input'
+OUTPUT_FOLDER = 'output'
+LOG_FOLDER = 'logs'
+STATIC_FOLDER = 'static'
+ZIP_PATH = 'zipped_results.zip'
+ALLOWED_EXTENSIONS = {'xlsx'}
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs(LOG_FOLDER, exist_ok=True)
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+VALID_PREFIXES = {
+    '330','331','333','334','335','336','337','338','339','360','363','366','368','340','342','343','344','345','346','347','348','349','376','320','322','323','324','327','328','329','380','383','388','389','390','391','392','393','397'
+}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return 'No file part'
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file'
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+
+        df = pd.read_excel(filepath)
+        columns = df.columns.tolist()
+
+        return render_template('column_select.html', columns=columns, filename=filename)
+    return 'Invalid file format'
+
+@app.route('/process', methods=['POST'])
+def process():
+    selected_column = request.form['column']
+    filename = request.form['filename']
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    df = pd.read_excel(filepath)
+
+    corrected = []
+    duplicati = []
+    anomalie = []
+    non_validi = []
+    eccezioni = []
+    report = []
+    seen = set()
+
+    for index, row in df.iterrows():
+        original = str(row[selected_column])
+        cleaned = original
+        note = []
+
+        if pd.isna(cleaned):
+            continue
+
+        cleaned = ''.join(filter(str.isdigit, cleaned)) if not cleaned.startswith('+') else '+' + ''.join(filter(str.isdigit, cleaned))
+        if ' ' in original:
+            note.append('Rimosso spazio')
+        if '#' in original:
+            note.append('Rimosso carattere speciale')
+
+        if cleaned.startswith('+39') and len(cleaned) == 13:
+            cleaned = cleaned[3:]
+            note.append('Rimosso prefisso +39')
+        elif cleaned.startswith('393') and len(cleaned) == 12:
+            cleaned = cleaned[2:]
+            note.append('Rimosso prefisso 39 da 393')
+
+        if not cleaned.startswith(('3', '0')):
+            cleaned = '0' + cleaned
+            note.append('Aggiunto zero iniziale')
+
+        if cleaned.startswith('800'):
+            eccezioni.append((index + 2, original))
+            note.append('Numero verde')
+
+        if cleaned in seen:
+            duplicati.append((index + 2, cleaned))
+            continue
+        seen.add(cleaned)
+
+        if len(cleaned) > 10:
+            anomalie.append((index + 2, cleaned))
+        elif len(cleaned) < 9:
+            non_validi.append((index + 2, cleaned))
+        elif len(cleaned) == 9 and cleaned[:3] not in VALID_PREFIXES:
+            non_validi.append((index + 2, cleaned))
+        else:
+            if note:
+                corrected.append((index + 2, original, cleaned, ', '.join(note)))
+
+        report.append((index + 2, original, cleaned, ', '.join(note)))
+
+    df[selected_column] = [str(x) for x in df[selected_column]]
+    df[selected_column] = df[selected_column].apply(lambda x: ''.join(filter(str.isdigit, x)) if not x.startswith('+') else '+' + ''.join(filter(str.isdigit, x)))
+    df.to_excel(os.path.join(OUTPUT_FOLDER, 'corretto.xlsx'), index=False)
+
+    pd.DataFrame(corrected, columns=['Riga', 'Originale', 'Corretto', 'Note']).to_excel(os.path.join(LOG_FOLDER, 'correzioni.xlsx'), index=False)
+    pd.DataFrame(duplicati, columns=['Riga', 'Duplicato']).to_excel(os.path.join(LOG_FOLDER, 'duplicati.xlsx'), index=False)
+    pd.DataFrame(anomalie, columns=['Riga', 'Anomalia']).to_excel(os.path.join(LOG_FOLDER, 'anomalie.xlsx'), index=False)
+    pd.DataFrame(non_validi, columns=['Riga', 'Non valido']).to_excel(os.path.join(LOG_FOLDER, 'non_validi.xlsx'), index=False)
+    pd.DataFrame(report, columns=['Riga', 'Originale', 'Finale', 'Note']).to_excel(os.path.join(LOG_FOLDER, 'report_completo.xlsx'), index=False)
+
+    corretto_df = pd.read_excel(os.path.join(OUTPUT_FOLDER, 'corretto.xlsx'))
+    to_exclude = set(x[1] for x in anomalie + duplicati + non_validi)
+    definitivo_df = corretto_df[~corretto_df[selected_column].astype(str).isin(to_exclude)]
+    definitivo_df.to_excel(os.path.join(OUTPUT_FOLDER, 'definitivo.xlsx'), index=False)
+
+    with zipfile.ZipFile(ZIP_PATH, 'w') as zipf:
+        for folder in [OUTPUT_FOLDER, LOG_FOLDER]:
+            for file in os.listdir(folder):
+                zipf.write(os.path.join(folder, file), arcname=os.path.join(folder, file))
+
+    return send_file(ZIP_PATH, as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)

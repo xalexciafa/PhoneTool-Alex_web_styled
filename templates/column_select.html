@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seleziona Colonna</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        select, button {
+            padding: 10px;
+            font-size: 1rem;
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Seleziona la colonna da elaborare</h2>
+    <form action="/process" method="POST">
+        <input type="hidden" name="filename" value="{{ filename }}">
+        <select name="column" required>
+            {% for col in columns %}
+                <option value="{{ col }}">{{ col }}</option>
+            {% endfor %}
+        </select>
+        <br>
+        <button type="submit">Elabora</button>
+    </form>
+</body>
+</html>
