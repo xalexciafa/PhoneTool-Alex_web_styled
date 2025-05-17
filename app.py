@@ -2,6 +2,9 @@ from flask import Flask, render_template, request, redirect, send_file, jsonify
 import pandas as pd
 import os
 from werkzeug.utils import secure_filename
+os.makedirs('input', exist_ok=True)
+os.makedirs('output', exist_ok=True)
+os.makedirs('logs', exist_ok=True)
 import zipfile
 
 app = Flask(__name__)
