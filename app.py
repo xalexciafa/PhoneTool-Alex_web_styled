@@ -113,8 +113,9 @@ def process():
             non_validi.append((index + 2, cleaned))
             continue
         else:
-            valid_rows.append(row)
-            if note:
+            if not note:
+                valid_rows.append(row)  # ✅ Solo se il numero non ha subito correzioni
+            else:
                 corrected.append((index + 2, original, cleaned, ', '.join(note)))
 
         report.append((index + 2, original, cleaned, ', '.join(note)))
