@@ -145,7 +145,17 @@
       background-color: #222;
       color: white;
     }
-  </style>
+  
+    .icon-bounce {
+      animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    </style>
+
 </head>
 <body>
   <div class="toggle-btn" onclick="toggleMode()">
@@ -154,7 +164,7 @@
 
   <h1>ALEX’S TOOL</h1>
   <p class="subtitle">Cleaning Tool</p>
-  <img src="static/fish_transparent.png" alt="Fish" class="top-image">
+  <img src="static/fish_transparent.png" alt="Fish" class="top-image icon-bounce">
 
   <form class="upload-form" onsubmit="return showModal()" action="/upload" method="POST" enctype="multipart/form-data">
     <input type="file" name="file" accept=".xlsx" required />
