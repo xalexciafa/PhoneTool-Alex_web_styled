@@ -89,15 +89,6 @@
       100% { width: 100%; }
     }
 
-    .icon-bounce {
-      animation: bounce 2s infinite;
-    }
-
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
-    }
-
     /* Modal */
     .modal {
       display: none;
@@ -130,7 +121,6 @@
       cursor: pointer;
     }
 
-    /* Dark mode toggle */
     .toggle-btn {
       position: absolute;
       top: 15px;
@@ -164,12 +154,12 @@
 
   <h1>ALEX’S TOOL</h1>
   <p class="subtitle">Cleaning Tool</p>
-  <img src="static/fish_transparent.png" alt="Fish" class="top-image icon-bounce">
+  <img src="static/fish_transparent.png" alt="Fish" class="top-image">
 
   <form class="upload-form" onsubmit="return showModal()" action="/upload" method="POST" enctype="multipart/form-data">
     <input type="file" name="file" accept=".xlsx" required />
     <br />
-    <button type="submit">Carica file Excel</button>
+    <button type="submit"><i class="fas fa-file-upload"></i> Carica file Excel</button>
   </form>
 
   <div id="loading" style="display: none;">
@@ -180,7 +170,6 @@
   </div>
 
   <img src="static/spazzino_transparent.gif" alt="Spazzino" class="bottom-image">
-
   <div class="footer">&copy; Alessandro Di Maso</div>
 
   <!-- Modal -->
