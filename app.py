@@ -114,6 +114,7 @@ def process():
             continue
         else:
             if not note:
+                row[selected_column] = cleaned
                 valid_rows.append(row)  # ✅ Solo se il numero non ha subito correzioni
             else:
                 corrected.append((index + 2, original, cleaned, ', '.join(note)))
