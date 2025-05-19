@@ -1,3 +1,4 @@
+
 from flask import Flask, render_template, request, redirect, send_file, jsonify
 import pandas as pd
 import os
@@ -13,14 +14,14 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'input'
 OUTPUT_FOLDER = 'output'
 LOG_FOLDER = 'logs'
-STATIC_FOLDER = 'static'
 ZIP_PATH = 'zipped_results.zip'
 ALLOWED_EXTENSIONS = {'xlsx'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 VALID_PREFIXES = {
-    '330','331','333','334','335','336','337','338','339','360','363','366','368','340','342','343','344','345','346','347','348','349','376','320','322','323','324','327','328','329','380','383','388','389','390','391','392','393','397'
+    '330','331','333','334','335','336','337','338','339','360','363','366','368','340','342','343','344','345','346','347','348','349','376',
+    '320','322','323','324','327','328','329','380','383','388','389','390','391','392','393','397'
 }
 
 def allowed_file(filename):
@@ -72,12 +73,15 @@ def process():
         if pd.isna(cleaned):
             continue
 
+        # Se inizia per 800 → numero verde
         if cleaned.startswith('800'):
             eccezioni.append((index + 2, original))
             report.append((index + 2, original, original, 'Numero verde (non modificato)'))
             continue
 
+        # Pulizia base
         cleaned = ''.join(filter(str.isdigit, cleaned)) if not cleaned.startswith('+') else '+' + ''.join(filter(str.isdigit, cleaned))
+
         if ' ' in original:
             note.append('Rimosso spazio')
         if '#' in original:
@@ -94,37 +98,37 @@ def process():
             cleaned = '0' + cleaned
             note.append('Aggiunto zero iniziale')
 
+        # Duplicati
         if cleaned in seen:
             duplicati.append((index + 2, cleaned))
             continue
         seen.add(cleaned)
 
+        # Verifica validità
+        is_valid = True
         if not cleaned.isdigit():
+            is_valid = False
             non_validi.append((index + 2, cleaned))
-            continue
-
-        if len(cleaned) > 10:
+        elif len(cleaned) > 10:
+            is_valid = False
             anomalie.append((index + 2, cleaned))
-            continue
         elif len(cleaned) < 9:
+            is_valid = False
             non_validi.append((index + 2, cleaned))
-            continue
         elif len(cleaned) == 9 and cleaned[:3] not in VALID_PREFIXES:
+            is_valid = False
             non_validi.append((index + 2, cleaned))
-            continue
-        else:
-            if not note:
-                row[selected_column] = cleaned
-                valid_rows.append(row)  # ✅ Solo se il numero non ha subito correzioni
-            else:
+
+        if is_valid:
+            row[selected_column] = cleaned
+            valid_rows.append(row)
+            if note:
                 corrected.append((index + 2, original, cleaned, ', '.join(note)))
 
         report.append((index + 2, original, cleaned, ', '.join(note)))
 
-    df[selected_column] = [str(x) for x in df[selected_column]]
-    df[selected_column] = df[selected_column].apply(lambda x: ''.join(filter(str.isdigit, x)) if not x.startswith('+') else '+' + ''.join(filter(str.isdigit, x)))
+    # Salvataggi finali
     df.to_excel(os.path.join(OUTPUT_FOLDER, 'corretto.xlsx'), index=False)
-
     pd.DataFrame(corrected, columns=['Riga', 'Originale', 'Corretto', 'Note']).to_excel(os.path.join(LOG_FOLDER, 'correzioni.xlsx'), index=False)
     pd.DataFrame(duplicati, columns=['Riga', 'Duplicato']).to_excel(os.path.join(LOG_FOLDER, 'duplicati.xlsx'), index=False)
     pd.DataFrame(anomalie, columns=['Riga', 'Anomalia']).to_excel(os.path.join(LOG_FOLDER, 'anomalie.xlsx'), index=False)
