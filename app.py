@@ -1,5 +1,5 @@
 
-from flask import Flask, render_template, request, redirect, send_file, jsonify
+from flask import Flask, render_template, request, send_file
 import pandas as pd
 import os
 from werkzeug.utils import secure_filename
@@ -73,13 +73,11 @@ def process():
         if pd.isna(cleaned):
             continue
 
-        # Se inizia per 800 → numero verde
         if cleaned.startswith('800'):
             eccezioni.append((index + 2, original))
             report.append((index + 2, original, original, 'Numero verde (non modificato)'))
             continue
 
-        # Pulizia base
         cleaned = ''.join(filter(str.isdigit, cleaned)) if not cleaned.startswith('+') else '+' + ''.join(filter(str.isdigit, cleaned))
 
         if ' ' in original:
@@ -98,13 +96,11 @@ def process():
             cleaned = '0' + cleaned
             note.append('Aggiunto zero iniziale')
 
-        # Duplicati
         if cleaned in seen:
             duplicati.append((index + 2, cleaned))
             continue
         seen.add(cleaned)
 
-        # Verifica validità
         is_valid = True
         if not cleaned.isdigit():
             is_valid = False
@@ -127,7 +123,6 @@ def process():
 
         report.append((index + 2, original, cleaned, ', '.join(note)))
 
-    # Salvataggi finali
     df.to_excel(os.path.join(OUTPUT_FOLDER, 'corretto.xlsx'), index=False)
     pd.DataFrame(corrected, columns=['Riga', 'Originale', 'Corretto', 'Note']).to_excel(os.path.join(LOG_FOLDER, 'correzioni.xlsx'), index=False)
     pd.DataFrame(duplicati, columns=['Riga', 'Duplicato']).to_excel(os.path.join(LOG_FOLDER, 'duplicati.xlsx'), index=False)
@@ -144,6 +139,16 @@ def process():
             for file in os.listdir(folder):
                 zipf.write(os.path.join(folder, file), arcname=os.path.join(folder, file))
 
+    return render_template("results.html",
+        n_corretti=len(corrected),
+        n_duplicati=len(duplicati),
+        n_anomalie=len(anomalie),
+        n_non_validi=len(non_validi),
+        n_verdi=len(eccezioni)
+    )
+
+@app.route('/download')
+def download_zip():
     return send_file(ZIP_PATH, as_attachment=True)
 
 if __name__ == '__main__':
